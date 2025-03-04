@@ -16,6 +16,7 @@ import {ParserV8} from "./parsers/ParserV8.js";
 import {ParserV9} from "./parsers/ParserV9.js";
 import {ParserV10} from "./parsers/ParserV10.js";
 import {ParserV11} from "./parsers/ParserV11.js";
+import {ParserV12} from './parsers/ParserV12.js';
 
 
 const parsers = {};
@@ -31,6 +32,7 @@ parsers[ParserV8.version] = ParserV8;
 parsers[ParserV9.version] = ParserV9;
 parsers[ParserV10.version] = ParserV10;
 parsers[ParserV11.version] = ParserV11;
+parsers[ParserV12.version] = ParserV12;
 
 /**
  * {@link Viewer} plugin that loads models from xeokit's optimized *````.XKT````* format.
@@ -250,6 +252,20 @@ parsers[ParserV11.version] = ParserV11;
  *     id: "myModel3",
  *     src: "./models/xkt/OTCConferenceCenter.xkt",
  *     excludeTypes: ["IfcSpace"]
+ * });
+ * ````
+ *
+ * # Including specific elements by id
+ *
+ * We can also load only those objects that have the specified ids.
+ *
+ * In the example below, we'll load only the objects that represent a specified wall with 4 windows.
+ *
+ * ````javascript
+ * const model4 = xktLoader.load({
+ *      id: "myModel4",
+ *      src: "../../assets/models/xkt/v10/glTF-Embedded/Duplex_A_20110505.glTFEmbedded.xkt",
+ *      includeIds: ["2O2Fr$t4X7Zf8NOew3FLOH", "1hOSvn6df7F8_7GcBWlS_W", "1hOSvn6df7F8_7GcBWlS4Q", "1hOSvn6df7F8_7GcBWlS1M", "1hOSvn6df7F8_7GcBWlS2V"],
  * });
  * ````
  *
@@ -1176,7 +1192,9 @@ class XKTLoaderPlugin extends Plugin {
         }
         const dataView = new DataView(arrayBuffer);
         const dataArray = new Uint8Array(arrayBuffer);
-        const xktVersion = dataView.getUint32(0, true);
+        const firstUint = dataView.getUint32(0, true);
+        const xktVersion = firstUint & 0x7fffffff;
+        const zipped = (xktVersion < 11) || ((xktVersion >= 12) && (firstUint >>> 31));
         const parser = parsers[xktVersion];
         if (!parser) {
             this.error("Unsupported .XKT file version: " + xktVersion + " - this XKTLoaderPlugin supports versions " + Object.keys(parsers));
@@ -1184,7 +1202,7 @@ class XKTLoaderPlugin extends Plugin {
         }
         //   this.log("Loading .xkt V" + xktVersion);
 
-        if (parser.parseArrayBuffer) {
+        if (!zipped) {
             parser.parseArrayBuffer(this.viewer, options, arrayBuffer, sceneModel, metaModel, manifestCtx);
             return;
         }
